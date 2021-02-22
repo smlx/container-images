@@ -22,13 +22,13 @@ jobs:
         for dockerfile in ./images/*/Dockerfile; do
           title=$(sed -En 's/.*org.opencontainers.image.title=(\S+).*/\1/p' $dockerfile)
           version=$(sed -En 's/.*org.opencontainers.image.version=(\S+).*/\1/p' $dockerfile)
-          if [ -z $(git tag -l "$title-v$version") ]; then
+          if [ $title ] && [ $version ] && [ -z $(git tag -l "$title-v$version") ]; then
             git tag "$title-v$version"
             git push --tags
             # figure out the name of the image
             image=${dockerfile#./images/}
             image=${image%/Dockerfile}
-            needsBuild+=(image)
+            needsBuild+=($image)
           fi
         done
         # if needsBuild is not empty, encode it to a JSON array in an output
@@ -61,7 +61,7 @@ jobs:
       with:
         registry: ghcr.io
         username: ${{ github.repository_owner }}
-        password: ${{ secrets.ghcr_TOKEN }}
+        password: ${{ secrets.CR_PAT }}
     - name: Get tag
       id: get-tag
       run: |
@@ -76,5 +76,5 @@ jobs:
         builder: ${{ steps.buildx.outputs.name }}
         context: ./${{ matrix.image }}
         file: ./${{ matrix.image }}/Dockerfile
-        push: ${{ github.event_name != 'pull_request' }}
+        push: true
         tags: smlx/${{ matrix.image }}:${{ steps.get-tag.outputs.tag }},smlx/${{ matrix.image }}:latest
