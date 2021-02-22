@@ -79,4 +79,4 @@ jobs:
         context: ./images/${{ matrix.image }}
         file: ./images/${{ matrix.image }}/Dockerfile
         push: true
-        tags: ghcr.io/smlx/container-images:${{ matrix.image }}-${{ steps.get-tag.outputs.tag }},ghcr.io/smlx/container-images:${{ matrix.image }}-latest
+        tags: ghcr.io/smlx/${{ matrix.image }}:${{ steps.get-tag.outputs.tag }},ghcr.io/smlx/${{ matrix.image }}:latest
