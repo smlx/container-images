@@ -32,7 +32,7 @@ jobs:
         # if needsBuild is not empty, encode it to a JSON array in an output
         # variable
         if [ ${#needsBuild[@]} -ne 0 ]; then
-          printf '::set-output name=imageMatrix::%s\n' "${needsBuild[@]}" | jq -R . | jq -cs .
+          echo "::set-output name=imageMatrix::$(printf '%s\n' "${needsBuild[@]}" | jq -R . | jq -cs .)"
         fi
     outputs:
       imageMatrix: ${{ steps.tag.outputs.imageMatrix }}
