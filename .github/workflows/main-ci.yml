@@ -1,0 +1,78 @@
+name: Main Branch CI
+
+on:
+  push:
+    branches: main
+
+jobs:
+  tag-check:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Tag new images
+      id: tag
+      run: |
+        set -e
+        set -x
+        needsBuild=()
+        # check if all the appropriate tags have been built
+        for dockerfile in ./images/*/Dockerfile; do
+          title=$(sed -En 's/.*org.opencontainers.image.title=(\S+).*/\1/p' $dockerfile)
+          version=$(sed -En 's/.*org.opencontainers.image.version=(\S+).*/\1/p' $dockerfile)
+          if [ -z $(git tag -l "$title-v$version") ]; then
+            git tag "$title-v$version"
+            git push --tags
+            # figure out the name of the image
+            image=${dockerfile#./images/}
+            image=${image%/Dockerfile}
+            needsBuild+=(image)
+          fi
+        done
+        # if needsBuild is not empty, encode it to a JSON array in an output
+        # variable
+        if [ ${#needsBuild[@]} -ne 0 ]; then
+          printf '::set-output name=imageMatrix::%s\n' "${needsBuild[@]}" | jq -R . | jq -cs .
+        fi
+    outputs:
+      imageMatrix: ${{ steps.tag.outputs.imageMatrix }}
+
+  build:
+    needs: tag-check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: ${{ fromJson(needs.tag-check.outputs.imageMatrix) }}
+    steps:
+    - name: Set up Docker Buildx
+      id: buildx
+      uses: docker/setup-buildx-action@v1
+    - name: Cache Docker layers
+      uses: actions/cache@v2
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-
+    - name: Login to ghcr
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.ghcr_TOKEN }}
+    - name: Get tag
+      id: get-tag
+      run: |
+        set -e
+        set -x
+        version=$(sed -En 's/.*org.opencontainers.image.version=(\S+).*/\1/p' ./images/${{ matrix.image }}/Dockerfile)
+        echo "::set-output name=tag::$version"
+    - name: Build and push
+      id: docker_build
+      uses: docker/build-push-action@v2
+      with:
+        builder: ${{ steps.buildx.outputs.name }}
+        context: ./${{ matrix.image }}
+        file: ./${{ matrix.image }}/Dockerfile
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: smlx/${{ matrix.image }}:${{ steps.get-tag.outputs.tag }},smlx/${{ matrix.image }}:latest
