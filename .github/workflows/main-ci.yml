@@ -67,6 +67,8 @@ jobs:
       run: |
         set -e
         set -x
+        pwd
+        ls
         version=$(sed -En 's/.*org.opencontainers.image.version=(\S+).*/\1/p' ./images/${{ matrix.image }}/Dockerfile)
         echo "::set-output name=tag::$version"
     - name: Build and push
